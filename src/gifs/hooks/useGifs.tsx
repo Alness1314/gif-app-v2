@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Gif } from "../interfaces/gif.interface";
 import { getGifs } from "../actions/get-gifs.action";
 
@@ -6,32 +6,29 @@ export const useGifs = () => {
   const [previousTerms, setPreviousTerms] = useState<string[]>([]);
   const [gifs, setGifs] = useState<Gif[]>([]);
 
-  const handleTermClick = (term: string) => {
-    handleFetch(term);
+  const gifCache = useRef<Record<string, Gif[]>>({});
+
+  const handleTermClick = async (term: string) => {
+    if (gifCache.current[term]) {
+      setGifs(gifCache.current[term]);
+      return;
+    }
+
+    const responseGifs = await getGifs(term);
+    setGifs(responseGifs);
   };
 
   const handleSearch = async (query: string) => {
-    const fixQuery = query.toLowerCase().trim();
-    if (!fixQuery) return;
+    query = query.trim().toLowerCase();
+    if (query.length === 0) return;
+    if (previousTerms.includes(query)) return;
 
-    if (previousTerms.includes(fixQuery)) return;
+    setPreviousTerms([query, ...previousTerms].splice(0, 8));
 
-    setPreviousTerms((prev) => {
-      const next = [fixQuery, ...prev.filter((t) => t !== fixQuery)];
-      return next.slice(0, 8);
-    });
+    const responseGifs = await getGifs(query);
+    setGifs(responseGifs);
 
-    handleFetch(query);
-  };
-
-  const handleFetch = async (query: string) => {
-    try {
-      const responseGifs = await getGifs(query);
-      setGifs(responseGifs);
-    } catch (err) {
-      console.error("Error obteniendo gifs:", err);
-      setGifs([]); 
-    }
+    gifCache.current[query] = responseGifs;
   };
 
   return {
